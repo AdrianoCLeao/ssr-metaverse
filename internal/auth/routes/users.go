@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"platable-backend/controllers"
+	"ssr-metaverse/internal/auth/controllers"
 
 	"github.com/gin-gonic/gin"
 )
