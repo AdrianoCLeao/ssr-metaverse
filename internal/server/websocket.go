@@ -7,6 +7,8 @@ import (
 	"math"
 
 	"github.com/gorilla/websocket"
+    "github.com/gin-gonic/gin"
+    "github.com/gin-contrib/cors"
 )
 
 type Client struct {
@@ -40,18 +42,27 @@ func NewServer() *Server {
 }
 
 func (s *Server) Start(addr string) error {
-    // Servir arquivos estáticos com suporte a CORS
-    http.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*") // Permite qualquer origem
-        w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-        http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets"))).ServeHTTP(w, r)
-    })
+	router := gin.Default()
 
-    // Endpoint WebSocket
-    http.HandleFunc("/ws", s.HandleWebSocket)
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, 
+		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
-    return http.ListenAndServe(addr, nil)
+	router.StaticFS("/assets", http.Dir("./assets"))
+
+	router.GET("/api/hello", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "Hello from RESTful API!"})
+	})
+
+	router.GET("/ws", func(c *gin.Context) {
+		s.HandleWebSocket(c.Writer, c.Request)
+	})
+
+	return router.Run(addr)
 }
 
 func filterObjects(world *World, clientPos [3]float64, maxDistance float64) map[string]Object {
@@ -87,11 +98,10 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
         s.Mutex.Unlock()
     }()
 
-    // Posicione o cliente em uma posição inicial (ajuste conforme necessário)
-    clientPos := [3]float64{0, 0, 0} // Exemplo de posição inicial
+    clientPos := [3]float64{0, 0, 0}
 
     world := NewWorld()
-    filteredObjects := filterObjects(world, clientPos, 5.0) // Raio de 1 metro
+    filteredObjects := filterObjects(world, clientPos, 5.0) 
     conn.WriteJSON(map[string]interface{}{
         "Objects": filteredObjects,
     })
