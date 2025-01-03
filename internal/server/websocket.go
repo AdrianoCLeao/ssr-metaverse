@@ -100,7 +100,9 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
     }()
 
     world := NewWorld()
-    clientPos := [3]float64{0, 0, 0}
+    //clientPos := [3]float64{0, 0, 0}
+    
+    prevFilteredObjects := make(map[string]Object)
 
     for {
         _, msg, err := conn.ReadMessage()
@@ -108,7 +110,8 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Error reading message:", err)
             break
         }
-
+        fmt.Printf("Received message from client: %s\n", string(msg))
+    
         var payload struct {
             Position [3]float64 `json:"position"`
             Rotation [3]float64 `json:"rotation"`
@@ -117,17 +120,31 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Error unmarshalling message:", err)
             continue
         }
-
-        clientPos = payload.Position
-
-        filteredObjects := filterObjects(world, clientPos, 1.0)
-
-        err = conn.WriteJSON(map[string]interface{}{
-            "Objects": filteredObjects,
-        })
+    
+        filteredObjects := world.Objects
+    
+        changes := map[string]interface{}{
+            "added":   make(map[string]Object),
+            "removed": make([]string, 0),
+        }
+    
+        for id, object := range filteredObjects {
+            if _, exists := prevFilteredObjects[id]; !exists {
+                changes["added"].(map[string]Object)[id] = object
+            }
+        }
+        for id := range prevFilteredObjects {
+            if _, exists := filteredObjects[id]; !exists {
+                changes["removed"] = append(changes["removed"].([]string), id)
+            }
+        }
+    
+        prevFilteredObjects = filteredObjects
+    
+        err = conn.WriteJSON(changes)
         if err != nil {
             fmt.Println("Error writing JSON:", err)
             break
         }
-    }
+    }    
 }
