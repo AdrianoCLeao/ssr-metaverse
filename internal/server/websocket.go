@@ -1,14 +1,15 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
-	"math"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-    "github.com/gin-gonic/gin"
-    "github.com/gin-contrib/cors"
 )
 
 type Client struct {
@@ -98,13 +99,8 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
         s.Mutex.Unlock()
     }()
 
-    clientPos := [3]float64{0, 0, 0}
-
     world := NewWorld()
-    filteredObjects := filterObjects(world, clientPos, 5.0) 
-    conn.WriteJSON(map[string]interface{}{
-        "Objects": filteredObjects,
-    })
+    clientPos := [3]float64{0, 0, 0}
 
     for {
         _, msg, err := conn.ReadMessage()
@@ -112,6 +108,26 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Error reading message:", err)
             break
         }
-        fmt.Println("Received:", string(msg))
+
+        var payload struct {
+            Position [3]float64 `json:"position"`
+            Rotation [3]float64 `json:"rotation"`
+        }
+        if err := json.Unmarshal(msg, &payload); err != nil {
+            fmt.Println("Error unmarshalling message:", err)
+            continue
+        }
+
+        clientPos = payload.Position
+
+        filteredObjects := filterObjects(world, clientPos, 1.0)
+
+        err = conn.WriteJSON(map[string]interface{}{
+            "Objects": filteredObjects,
+        })
+        if err != nil {
+            fmt.Println("Error writing JSON:", err)
+            break
+        }
     }
 }
