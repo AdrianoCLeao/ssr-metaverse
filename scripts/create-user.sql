@@ -14,19 +14,6 @@ CREATE TABLE users (
 );
 
 /*
-Table: roles
-This table defines the roles that can be assigned to users.
-- id_role: Auto-increment primary key for identifying roles.
-- role_name: Unique name of the role (e.g., "admin", "moderator").
-- description: Optional description explaining the purpose or permissions of the role.
-*/
-CREATE TABLE roles (
-    id_role SERIAL PRIMARY KEY,
-    role_name VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT
-);
-
-/*
 Table: account_roles
 This table manages the relationships between users and their assigned roles.
 - id_account_roles: Auto-increment primary key for identifying the relationship.
@@ -46,3 +33,18 @@ CREATE TABLE account_roles (
     CONSTRAINT fk_account FOREIGN KEY (id_user) REFERENCES users (id_user),
     CONSTRAINT fk_role FOREIGN KEY (id_role) REFERENCES roles (id_role)
 );
+
+/*
+Table: roles
+This table defines the roles that can be assigned to users.
+- id_role: Auto-increment primary key for identifying roles.
+- role_name: Unique name of the role (e.g., "admin", "moderator").
+- description: Optional description explaining the purpose or permissions of the role.
+*/
+CREATE TABLE roles (
+    id_role SERIAL PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT
+);
+
+
