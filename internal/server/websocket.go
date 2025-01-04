@@ -110,7 +110,6 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Error reading message:", err)
             break
         }
-        fmt.Printf("Received message from client: %s\n", string(msg))
     
         var payload struct {
             Position [3]float64 `json:"position"`
