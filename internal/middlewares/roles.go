@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"database/sql"
 	"net/http"
 	"strings"
 
@@ -10,7 +9,7 @@ import (
 	"ssr-metaverse/internal/config"
 )
 
-func RolesGuard(db *sql.DB, requiredRole string) gin.HandlerFunc {
+func RolesGuard(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -46,27 +45,23 @@ func RolesGuard(db *sql.DB, requiredRole string) gin.HandlerFunc {
 			return
 		}
 
-		userID, ok := claims["user_id"].(float64)
+		roles, ok := claims["roles"].([]interface{})
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid roles in token"})
 			c.Abort()
 			return
 		}
 
-		var roleName string
-		query := `
-			SELECT r.role_name
-			FROM account_roles ar
-			JOIN roles r ON ar.id_role = r.id_role
-			WHERE ar.id_user = $1 AND r.role_name = $2 AND ar.revoked_at IS NULL
-		`
-		err = db.QueryRow(query, int(userID), requiredRole).Scan(&roleName)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: insufficient permissions"})
-			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		hasRole := false
+		for _, role := range roles {
+			if role == requiredRole {
+				hasRole = true
+				break
 			}
+		}
+
+		if !hasRole {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: insufficient permissions"})
 			c.Abort()
 			return
 		}
