@@ -24,7 +24,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	token, err := services.GenerateToken(user.ID)
+	roles, err := services.GetUserRoles(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := services.GenerateToken(user.ID, roles)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

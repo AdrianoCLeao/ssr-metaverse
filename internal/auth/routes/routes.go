@@ -10,5 +10,7 @@ func SetupRouter() *gin.Engine {
 	RegisterAuthRoutes(r)
 	RegisterUserRoutes(r)
 
+	RegisterProtectedRoutes(r)
+
 	return r
 }

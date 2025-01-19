@@ -68,3 +68,33 @@ func Authenticate(username, password string) (*entities.User, error) {
 
 	return &user, nil
 }
+
+func GetUserRoles(userID int) ([]string, error) {
+	query := `
+		SELECT r.role_name
+		FROM account_roles ar
+		JOIN roles r ON ar.id_role = r.id_role
+		WHERE ar.id_user = $1 AND ar.revoked_at IS NULL
+	`
+
+	rows, err := database.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []string
+	for rows.Next() {
+		var roleName string
+		if err := rows.Scan(&roleName); err != nil {
+			return nil, err
+		}
+		roles = append(roles, roleName)
+	}
+
+	if len(roles) == 0 {
+		return nil, errors.New("nenhum cargo encontrado para o usuário")
+	}
+
+	return roles, nil
+}
