@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 
@@ -9,10 +10,9 @@ import (
 	"ssr-metaverse/internal/config"
 )
 
-func JWTMiddleware() gin.HandlerFunc {
+func RolesGuard(db *sql.DB, requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing"})
 			c.Abort()
@@ -35,6 +35,38 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			c.Abort()
+			return
+		}
+
+		userID, ok := claims["user_id"].(float64)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
+			c.Abort()
+			return
+		}
+
+		var roleName string
+		query := `
+			SELECT r.role_name
+			FROM account_roles ar
+			JOIN roles r ON ar.id_role = r.id_role
+			WHERE ar.id_user = $1 AND r.role_name = $2 AND ar.revoked_at IS NULL
+		`
+		err = db.QueryRow(query, int(userID), requiredRole).Scan(&roleName)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: insufficient permissions"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+			}
 			c.Abort()
 			return
 		}
