@@ -15,7 +15,7 @@ func CreateUser(username, password string) (*entities.User, error) {
 		return nil, err
 	}
 
-	query := `INSERT INTO account (username, password) VALUES ($1, $2) RETURNING id, created_at`
+	query := `INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id_user, created_at`
 	var user entities.User
 	err = database.DB.QueryRow(query, username, string(hashedPassword)).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
@@ -28,7 +28,7 @@ func CreateUser(username, password string) (*entities.User, error) {
 
 func GetUserByID(id int) (*entities.User, error) {
 	var user entities.User
-	query := `SELECT id, username, created_at FROM account WHERE id = $1`
+	query := `SELECT id_user, username, created_at FROM users WHERE id_user = $1`
 	err := database.DB.QueryRow(query, id).Scan(&user.ID, &user.Username, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, errors.New("usuário não encontrado")
@@ -42,20 +42,20 @@ func UpdateUser(id int, username, password string) error {
 		return err
 	}
 
-	query := `UPDATE account SET username = $1, password = $2 WHERE id = $3`
+	query := `UPDATE users SET username = $1, password = $2 WHERE id_user = $3`
 	_, err = database.DB.Exec(query, username, hashedPassword, id)
 	return err
 }
 
 func DeleteUser(id int) error {
-	query := `DELETE FROM account WHERE id = $1`
+	query := `DELETE FROM users WHERE id_user = $1`
 	_, err := database.DB.Exec(query, id)
 	return err
 }
 
 func Authenticate(username, password string) (*entities.User, error) {
 	var user entities.User
-	query := `SELECT id, username, password FROM account WHERE username = $1`
+	query := `SELECT id_user, username, password FROM users WHERE username = $1`
 	err := database.DB.QueryRow(query, username).Scan(&user.ID, &user.Username, &user.Password)
 	if err == sql.ErrNoRows {
 		return nil, errors.New("usuário não encontrado")
