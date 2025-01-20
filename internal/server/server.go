@@ -28,6 +28,7 @@ func (s *Server) Start(addr string) error {
 
 	routes.RegisterAuthRoutes(router)
 	routes.RegisterUserRoutes(router)
+	routes.RegisterProtectedRoutes(router)
 
 	router.StaticFS("/assets", http.Dir("./assets"))
 

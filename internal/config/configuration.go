@@ -3,7 +3,7 @@ package config
 import "os"
 
 var (
-	JwtSecret  = os.Getenv("JWT_SECRET")
+	JwtSecret  = []byte(os.Getenv("JWT_SECRET"))
 	DBHost     = os.Getenv("DB_HOST")
 	DBPort     = os.Getenv("DB_PORT")
 	DBUser     = os.Getenv("DB_USER")

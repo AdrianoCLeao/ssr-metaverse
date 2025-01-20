@@ -23,6 +23,16 @@ func CreateUser(username, password string) (*entities.User, error) {
 	}
 
 	user.Username = username
+
+	roleQuery := `
+		INSERT INTO account_roles (id_user, id_role) 
+		SELECT $1, id_role FROM roles WHERE role_name = 'user'
+	`
+	_, err = database.DB.Exec(roleQuery, user.ID)
+	if err != nil {
+		return nil, errors.New("erro ao atribuir o cargo 'user' ao usuário")
+	}
+
 	return &user, nil
 }
 
