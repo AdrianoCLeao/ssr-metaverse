@@ -7,7 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Login(c *gin.Context) {
+type AuthController struct {
+	Service *services.UserService
+}
+
+func NewAuthController(service *services.UserService) *AuthController {
+	return &AuthController{Service: service}
+}
+
+func (ctrl *AuthController) Login(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -18,13 +26,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	user, err := services.Authenticate(input.Username, input.Password)
+	user, err := ctrl.Service.Authenticate(input.Username, input.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	roles, err := services.GetUserRoles(user.ID)
+	roles, err := ctrl.Service.GetUserRoles(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

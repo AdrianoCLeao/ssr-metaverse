@@ -1,22 +1,15 @@
 package server
 
 import (
-	"ssr-metaverse/internal/auth/routes"
-	"ssr-metaverse/internal/database"
-
+	"log"
 	"net/http"
-
+	"ssr-metaverse/internal/auth/routes"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-/*
-Starts the server using gin for HTTP and WebSocket endpoints.
-It configures CORS, serves static files from './assets' and sets up the routes.
-*/
 func (s *Server) Start(addr string) error {
 	router := gin.Default()
-	database.Connect()
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
@@ -26,8 +19,8 @@ func (s *Server) Start(addr string) error {
 		AllowCredentials: true,
 	}))
 
-	routes.RegisterAuthRoutes(router)
-	routes.RegisterUserRoutes(router)
+	routes.RegisterAuthRoutes(router, s.DB)
+	routes.RegisterUserRoutes(router, s.DB)
 	routes.RegisterProtectedRoutes(router)
 
 	router.StaticFS("/assets", http.Dir("./assets"))
@@ -41,7 +34,7 @@ func (s *Server) Start(addr string) error {
 	})
 
 	router.GET("/health", func(c *gin.Context) {
-		err := database.CheckHealth()
+		err := s.DB.CheckHealth()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "unhealthy",
@@ -56,5 +49,6 @@ func (s *Server) Start(addr string) error {
 		})
 	})
 
+	log.Printf("Iniciando servidor em %s...", addr)
 	return router.Run(addr)
 }

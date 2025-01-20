@@ -2,16 +2,21 @@ package routes
 
 import (
 	"ssr-metaverse/internal/auth/controllers"
+	"ssr-metaverse/internal/auth/services"
+	"ssr-metaverse/internal/database"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterUserRoutes(r *gin.Engine) {
+func RegisterUserRoutes(r *gin.Engine, db database.DBInterface) {
+	userService := &services.UserService{DB: db}
+	userController := controllers.NewUserController(userService)
+
 	users := r.Group("/users")
 	{
-		users.POST("/", controllers.CreateUser)
-		users.GET("/:id", controllers.GetUser)
-		users.PUT("/:id", controllers.UpdateUser)
-		users.DELETE("/:id", controllers.DeleteUser)
+		users.POST("/", userController.CreateUser)
+		users.GET("/:id", userController.GetUser)
+		users.PUT("/:id", userController.UpdateUser)
+		users.DELETE("/:id", userController.DeleteUser)
 	}
 }
