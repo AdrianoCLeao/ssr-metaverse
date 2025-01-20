@@ -4,14 +4,26 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"ssr-metaverse/internal/config"
 
 	_ "github.com/lib/pq"
-	"ssr-metaverse/internal/config"
 )
 
-var DB *sql.DB
+type DBInterface interface {
+	Connect() error
+	CheckHealth() error
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
 
-func Connect() {
+type Database struct {
+	DB *sql.DB
+}
+
+var DBInstance DBInterface
+
+func (d *Database) Connect() error {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		config.DBHost,
@@ -22,22 +34,35 @@ func Connect() {
 	)
 
 	var err error
-	DB, err = sql.Open("postgres", dsn)
+	d.DB, err = sql.Open("postgres", dsn)
 	if err != nil {
-		log.Fatalf("Erro ao conectar ao banco de dados: %v", err)
+		return fmt.Errorf("erro ao conectar ao banco de dados: %w", err)
 	}
 
-	if err = DB.Ping(); err != nil {
-		log.Fatalf("Erro ao verificar a conexão com o banco de dados: %v", err)
+	if err = d.DB.Ping(); err != nil {
+		return fmt.Errorf("erro ao verificar a conexão com o banco de dados: %w", err)
 	}
 
 	log.Println("Banco de dados conectado com sucesso!")
+	return nil
 }
 
-func CheckHealth() error {
-    err := DB.Ping()
-    if err != nil {
-        log.Printf("Erro ao verificar a saúde do banco de dados: %v", err)
-    }
-    return err
+func (d *Database) CheckHealth() error {
+	err := d.DB.Ping()
+	if err != nil {
+		log.Printf("Erro ao verificar a saúde do banco de dados: %v", err)
+	}
+	return err
+}
+
+func (d *Database) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	return d.DB.Query(query, args...)
+}
+
+func (d *Database) QueryRow(query string, args ...interface{}) *sql.Row {
+	return d.DB.QueryRow(query, args...)
+}
+
+func (d *Database) Exec(query string, args ...interface{}) (sql.Result, error) {
+	return d.DB.Exec(query, args...)
 }

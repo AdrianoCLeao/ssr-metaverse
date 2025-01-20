@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"ssr-metaverse/internal/database"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -30,6 +31,7 @@ type Server struct {
 	Clients  map[string]*Client
 	Mutex    sync.Mutex
 	Upgrader websocket.Upgrader
+	DB       database.DBInterface
 }
 
 /*
@@ -62,7 +64,7 @@ func filterObjects(world *World, clientPos [3]float64, maxDistance float64) map[
 /*
    Creates and initializes a new Server instance.
 */
-func NewServer() *Server {
+func NewServer(db database.DBInterface) *Server {
 	return &Server{
 		Clients: make(map[string]*Client),
 		Upgrader: websocket.Upgrader{
@@ -70,6 +72,7 @@ func NewServer() *Server {
 				return true
 			},
 		},
+		DB: db,
 	}
 }
 
