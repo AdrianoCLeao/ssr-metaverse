@@ -2,7 +2,8 @@ package server
 
 import (
 	"ssr-metaverse/internal/auth/routes"
-	
+	"ssr-metaverse/internal/database"
+
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -10,11 +11,12 @@ import (
 )
 
 /*
-   Starts the server using gin for HTTP and WebSocket endpoints.
-   It configures CORS, serves static files from './assets' and sets up the routes.
+Starts the server using gin for HTTP and WebSocket endpoints.
+It configures CORS, serves static files from './assets' and sets up the routes.
 */
 func (s *Server) Start(addr string) error {
 	router := gin.Default()
+	database.Connect()
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
@@ -29,7 +31,7 @@ func (s *Server) Start(addr string) error {
 
 	router.StaticFS("/assets", http.Dir("./assets"))
 
-	router.GET("/api/hello", func(c *gin.Context) {
+	router.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from RESTful API!"})
 	})
 
@@ -37,6 +39,21 @@ func (s *Server) Start(addr string) error {
 		s.HandleWebSocket(c.Writer, c.Request)
 	})
 
+	router.GET("/health", func(c *gin.Context) {
+		err := database.CheckHealth()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "unhealthy",
+				"message": "Erro ao conectar ao banco de dados",
+				"error":   err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "healthy",
+			"message": "Banco de dados conectado com sucesso",
+		})
+	})
+
 	return router.Run(addr)
 }
-

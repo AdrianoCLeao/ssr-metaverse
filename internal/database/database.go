@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 
-	_ "github.com/lib/pq" 
+	_ "github.com/lib/pq"
+	"ssr-metaverse/internal/config"
 )
 
 var DB *sql.DB
@@ -14,11 +14,11 @@ var DB *sql.DB
 func Connect() {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
+		config.DBHost,
+		config.DBPort,
+		config.DBUser,
+		config.DBPassword,
+		config.DBName,
 	)
 
 	var err error
@@ -35,5 +35,9 @@ func Connect() {
 }
 
 func CheckHealth() error {
-	return DB.Ping()
+    err := DB.Ping()
+    if err != nil {
+        log.Printf("Erro ao verificar a saúde do banco de dados: %v", err)
+    }
+    return err
 }
