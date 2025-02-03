@@ -1,0 +1,21 @@
+info:
+  contact: {}
+paths:
+  /hello:
+    get:
+      consumes:
+      - application/json
+      description: Returns a Hello World message from the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Hello Message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Returns a message from the API
+      tags:
+      - hello
+swagger: "2.0"
