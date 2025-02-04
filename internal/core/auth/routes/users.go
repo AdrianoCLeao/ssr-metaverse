@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"ssr-metaverse/internal/auth/controllers"
-	"ssr-metaverse/internal/auth/services"
+	"ssr-metaverse/internal/core/auth/controllers"
+	"ssr-metaverse/internal/core/auth/services"
 	"ssr-metaverse/internal/database"
 
 	"github.com/gin-gonic/gin"

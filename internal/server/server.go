@@ -10,7 +10,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
 
-	"ssr-metaverse/internal/auth/routes"
+	"ssr-metaverse/internal/core/auth/routes"
 )
 
 // HelloHandler godoc

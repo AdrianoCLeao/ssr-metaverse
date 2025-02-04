@@ -3,7 +3,7 @@ package services
 import (
 	"database/sql"
 	"errors"
-	"ssr-metaverse/internal/auth/entities"
+	"ssr-metaverse/internal/core/entities"
 	"ssr-metaverse/internal/database"
 
 	"golang.org/x/crypto/bcrypt"
