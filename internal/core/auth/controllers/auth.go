@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"net/http"
-	"ssr-metaverse/internal/auth/services"
+	"ssr-metaverse/internal/core/auth/services"
 
 	"github.com/gin-gonic/gin"
 )

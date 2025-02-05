@@ -1,4 +1,4 @@
-.PHONY: help build run docker-build docker-up docker-down logs swag test clean
+.PHONY: help build up down logs docs
 
 # Display available commands.
 help:
@@ -28,4 +28,4 @@ logs:
 
 # Generate the Swagger documentation using docs.
 docs:
-	swag init -g cmd/main.go --dir . --exclude vendor,assets,docs
+	swag init -g cmd/main.go --dir . --exclude vendor,assets,docs -o ./api/swagger

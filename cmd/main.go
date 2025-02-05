@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	"ssr-metaverse/docs"
-	_ "ssr-metaverse/docs"
+	"ssr-metaverse/api/swagger"
+	_ "ssr-metaverse/api/swagger"
 	"ssr-metaverse/internal/database"
 	"ssr-metaverse/internal/server"
 )
@@ -14,12 +14,12 @@ func main() {
 		log.Fatalf("Erro ao conectar ao banco de dados: %v", err)
 	}
 
-	docs.SwaggerInfo.Title = "SSR Metaverse API"
-    docs.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
-    docs.SwaggerInfo.Version = "1.0"
-    docs.SwaggerInfo.Host = "localhost:8080"
-    docs.SwaggerInfo.BasePath = "/"
-    docs.SwaggerInfo.Schemes = []string{"http"}
+	swagger.SwaggerInfo.Title = "SSR Metaverse API"
+    swagger.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
+    swagger.SwaggerInfo.Version = "1.0"
+    swagger.SwaggerInfo.Host = "localhost:8080"
+    swagger.SwaggerInfo.BasePath = "/"
+    swagger.SwaggerInfo.Schemes = []string{"http"}
 
 	srv := server.NewServer(db)
 	

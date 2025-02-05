@@ -2,7 +2,7 @@ package services
 
 import (
 	"database/sql"
-	"ssr-metaverse/internal/auth/entities"
+	"ssr-metaverse/internal/core/entities"
 	"ssr-metaverse/internal/database"
 	"testing"
 
