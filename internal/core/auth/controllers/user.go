@@ -21,6 +21,7 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
+		Email string `json:"email" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -28,7 +29,7 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := ctrl.Service.CreateUser(input.Username, input.Password)
+	user, err := ctrl.Service.CreateUser(input.Username, input.Email, input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
