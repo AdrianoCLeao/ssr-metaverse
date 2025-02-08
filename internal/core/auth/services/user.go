@@ -3,9 +3,11 @@ package services
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"ssr-metaverse/internal/core/entities"
 	"ssr-metaverse/internal/database"
 
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -13,37 +15,30 @@ type UserService struct {
 	DB database.DBInterface
 }
 
-func (s *UserService) CreateUser(username, password string) (*entities.User, error) {
+func (s *UserService) CreateUser(username, email, password string) (*entities.User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("500", "Erro ao gerar hash da senha")
 	}
 
-	query := `INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id_user, created_at`
+	query := `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id_user, created_at`
 	var user entities.User
-	err = s.DB.QueryRow(query, username, string(hashedPassword)).Scan(&user.ID, &user.CreatedAt)
+	err = s.DB.QueryRow(query, username, email, string(hashedPassword)).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
-		return nil, err
-	}
-
-	user.Username = username
-
-	roleQuery := `
-		INSERT INTO account_roles (id_user, id_role) 
-		SELECT $1, id_role FROM roles WHERE role_name = 'user'
-	`
-	_, err = s.DB.Exec(roleQuery, user.ID)
-	if err != nil {
-		return nil, errors.New("erro ao atribuir o cargo 'user' ao usuário")
+		if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" { 
+			return nil, fmt.Errorf("409", "Usuário ou e-mail já cadastrados")
+		}
+		return nil, fmt.Errorf("500", "Erro ao criar usuário")
 	}
 
 	return &user, nil
 }
 
+
 func (s *UserService) GetUserByID(id int) (*entities.User, error) {
 	var user entities.User
-	query := `SELECT id_user, username, created_at FROM users WHERE id_user = $1`
-	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.Username, &user.CreatedAt)
+	query := `SELECT id_user, username, email, created_at FROM users WHERE id_user = $1`
+	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.Email, &user.Username, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, errors.New("usuário não encontrado")
 	}
