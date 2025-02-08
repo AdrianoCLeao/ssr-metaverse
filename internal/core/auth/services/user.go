@@ -37,8 +37,8 @@ func (s *UserService) CreateUser(username, email, password string) (*entities.Us
 
 func (s *UserService) GetUserByID(id int) (*entities.User, error) {
 	var user entities.User
-	query := `SELECT id_user, username, created_at FROM users WHERE id_user = $1`
-	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.Username, &user.CreatedAt)
+	query := `SELECT id_user, username, email, created_at FROM users WHERE id_user = $1`
+	err := s.DB.QueryRow(query, id).Scan(&user.ID, &user.Email, &user.Username, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, errors.New("usuário não encontrado")
 	}
