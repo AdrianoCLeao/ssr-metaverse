@@ -52,16 +52,9 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 		return
 	}
 
-	user, err := ctrl.Service.GetUserByID(id)
-	if err != nil {
-		if apiErr, ok := err.(*error.APIError); ok {
-			error.RespondWithError(c, *apiErr)
-		} else {
-			error.RespondWithError(c, error.APIError{
-				Code:    http.StatusInternalServerError,
-				Message: "Unexpected error occurred looking for the user",
-			})
-		}
+	user, apiErr := ctrl.Service.GetUserByID(id)
+	if apiErr != nil {
+		error.RespondWithError(c, *apiErr)
 		return
 	}
 
