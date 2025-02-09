@@ -11,6 +11,7 @@ import (
 	"github.com/swaggo/gin-swagger"
 
 	"ssr-metaverse/internal/core/auth/routes"
+	"ssr-metaverse/internal/middlewares"
 )
 
 // HelloHandler godoc
@@ -35,6 +36,8 @@ func (s *Server) Start(addr string) error {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
+
+	router.Use(middlewares.ErrorHandler())
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
