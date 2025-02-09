@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"ssr-metaverse/internal/core/auth/services"
+    "ssr-metaverse/internal/core/error"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,17 +22,17 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
-		Email string `json:"email" binding:"required"`
+		Email    string `json:"email" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		error.RespondWithError(c, error.Error(http.StatusBadRequest, "Dados inválidos: "+err.Error()))
 		return
 	}
 
 	user, err := ctrl.Service.CreateUser(input.Username, input.Email, input.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		error.RespondWithError(c, *err)
 		return
 	}
 
