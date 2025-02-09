@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 	"ssr-metaverse/internal/core/auth/services"
+	"ssr-metaverse/internal/core/error"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,19 +51,22 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	var input LoginRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid Data: " + err.Error(),
+		})
 		return
 	}
 
 	user, err := ctrl.Service.Authenticate(input.Username, input.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: err.Error()})
+		error.RespondWithError(c, *err)
 		return
 	}
 
 	roles, err := ctrl.Service.GetUserRoles(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		error.RespondWithError(c, *err)
 		return
 	}
 

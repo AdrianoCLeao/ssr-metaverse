@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"ssr-metaverse/internal/core/auth/services"
-    "ssr-metaverse/internal/core/error"
+	"ssr-metaverse/internal/core/error"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,7 +26,10 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		error.RespondWithError(c, error.Error(http.StatusBadRequest, "Dados inválidos: "+err.Error()))
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid Data: " + err.Error(),
+		})
 		return
 	}
 
@@ -42,13 +45,23 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 func (ctrl *UserController) GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid ID",
+		})
 		return
 	}
 
 	user, err := ctrl.Service.GetUserByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if apiErr, ok := err.(*error.APIError); ok {
+			error.RespondWithError(c, *apiErr)
+		} else {
+			error.RespondWithError(c, error.APIError{
+				Code:    http.StatusInternalServerError,
+				Message: "Unexpected error occurred looking for the user",
+			})
+		}
 		return
 	}
 
@@ -58,7 +71,10 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 func (ctrl *UserController) UpdateUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid ID",
+		})
 		return
 	}
 
@@ -68,12 +84,16 @@ func (ctrl *UserController) UpdateUser(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid Data: " + err.Error(),
+		})
 		return
 	}
 
-	if err := ctrl.Service.UpdateUser(id, input.Username, input.Password); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	errAPI := ctrl.Service.UpdateUser(id, input.Username, input.Password)
+	if errAPI != nil {
+		error.RespondWithError(c, *errAPI)
 		return
 	}
 
@@ -83,12 +103,16 @@ func (ctrl *UserController) UpdateUser(c *gin.Context) {
 func (ctrl *UserController) DeleteUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid ID",
+		})
 		return
 	}
 
-	if err := ctrl.Service.DeleteUser(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	errAPI := ctrl.Service.DeleteUser(id)
+	if errAPI != nil {
+		error.RespondWithError(c, *errAPI)
 		return
 	}
 
