@@ -19,7 +19,6 @@ func TestAuthenticate(t *testing.T) {
 	password := "password123"
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
-	// Configurar o mock para retornar o usuário correto
 	mockDB.On(
 		"QueryRow",
 		"SELECT id_user, username, password FROM users WHERE username = $1",

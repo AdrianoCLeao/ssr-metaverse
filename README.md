@@ -45,10 +45,11 @@ DB_NAME=metaverse
 3. **Build and Run Locally:**
 ```bash
 make build
-make run
+make up
 ```
 
-The server will be accessible at  [http://localhost:8080](http://localhost:8080).
+The server will be accessible at  [http://localhost:8080](http://localhost:8080). 
+You can test the health of the database on the /health route. 
 ## Commands
 
 The available commands are:
