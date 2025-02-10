@@ -9,13 +9,13 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-type SDP struct {
+type VideoSDP struct {
 	SDP  string `json:"sdp"`
 	Type string `json:"type"`
 }
 
-func AudioOfferHandler(c *gin.Context) {
-	var offer SDP
+func VideoOfferHandler(c *gin.Context) {
+	var offer VideoSDP
 	if err := c.BindJSON(&offer); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SDP offer"})
 		return
@@ -28,6 +28,7 @@ func AudioOfferHandler(c *gin.Context) {
 			},
 		},
 	}
+
 	peerConnection, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating PeerConnection: " + err.Error()})
@@ -35,10 +36,9 @@ func AudioOfferHandler(c *gin.Context) {
 	}
 
 	peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		log.Printf("Receiving track: ID=%s, tipo=%s", remoteTrack.ID(), remoteTrack.Kind().String())
-
-		if remoteTrack.Kind() == webrtc.RTPCodecTypeAudio {
-			localTrack, err := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "audio", "pion")
+		log.Printf("Received track: ID=%s, type=%s", remoteTrack.ID(), remoteTrack.Kind().String())
+		if remoteTrack.Kind() == webrtc.RTPCodecTypeVideo {
+			localTrack, err := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "video", "pion")
 			if err != nil {
 				log.Println("Error creating local track:", err)
 				return
@@ -64,7 +64,7 @@ func AudioOfferHandler(c *gin.Context) {
 						return
 					}
 
-					if _, _, err := sender.Read(rtcpBuf); err != nil { // todo: this is ugly
+					if _, _, err := sender.Read(rtcpBuf); err != nil {
 						return
 					}
 				}
@@ -77,7 +77,7 @@ func AudioOfferHandler(c *gin.Context) {
 		SDP:  offer.SDP,
 	}
 	if err := peerConnection.SetRemoteDescription(sdpOffer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error defining remote description: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error setting remote description: " + err.Error()})
 		return
 	}
 
@@ -88,7 +88,7 @@ func AudioOfferHandler(c *gin.Context) {
 	}
 
 	if err := peerConnection.SetLocalDescription(answer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error describing local description: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error setting local description: " + err.Error()})
 		return
 	}
 
