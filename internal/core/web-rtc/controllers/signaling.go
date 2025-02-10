@@ -1,33 +1,33 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"ssr-metaverse/internal/core/web-rtc/services" 
 	"ssr-metaverse/internal/utils"
+	"ssr-metaverse/internal/core/error"
 )
 
-var hub = services.NewHub()
+var chatHub = services.NewHub()
 
 func init() {
-	go hub.Run() 
+	go chatHub.Run()
 }
 
-func SignalWs(c *gin.Context) {
+func ChatHandler(c *gin.Context) {
 	conn, err := utils.Upgrade(c.Writer, c.Request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error establishing websocket connection."})
+		error.RespondWithError(c, *err)
 		return
 	}
 
 	client := &services.Client{
-		Hub:  hub,
+		Hub:  chatHub,
 		Conn: conn,
 		Send: make(chan []byte, 256),
 	}
-	client.Hub.Register <- client
+
+	chatHub.Register <- client
 
 	go client.WritePump()
-	client.ReadPump() 
+	client.ReadPump()
 }

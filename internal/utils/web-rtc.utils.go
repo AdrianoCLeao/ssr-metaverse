@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"ssr-metaverse/internal/core/error"
 )
 
 var Upgrader = websocket.Upgrader{
@@ -14,6 +15,14 @@ var Upgrader = websocket.Upgrader{
 	},
 }
 
-func Upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
-	return Upgrader.Upgrade(w, r, nil)
+func Upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, *error.APIError) {
+	conn, err := Upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, &error.APIError{
+			Code:    500,
+			Message: "WebSocket upgrade failed",
+		}
+	}
+
+	return conn, nil
 }

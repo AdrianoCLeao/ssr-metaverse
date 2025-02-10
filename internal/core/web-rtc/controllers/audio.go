@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pion/webrtc/v3"
+	"ssr-metaverse/internal/core/error"
 )
 
 type SDP struct {
@@ -16,8 +17,12 @@ type SDP struct {
 
 func AudioOfferHandler(c *gin.Context) {
 	var offer SDP
+	
 	if err := c.BindJSON(&offer); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SDP offer"})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid SDP offer: " + err.Error(),
+		})
 		return
 	}
 
@@ -30,7 +35,10 @@ func AudioOfferHandler(c *gin.Context) {
 	}
 	peerConnection, err := webrtc.NewPeerConnection(config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating PeerConnection: " + err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusInternalServerError,
+			Message: "Error creating PeerConnection: " + err.Error(),
+		})
 		return
 	}
 
@@ -77,18 +85,27 @@ func AudioOfferHandler(c *gin.Context) {
 		SDP:  offer.SDP,
 	}
 	if err := peerConnection.SetRemoteDescription(sdpOffer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error defining remote description: " + err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusInternalServerError,
+			Message: "Error defining remote description: " + err.Error(),
+		})
 		return
 	}
 
 	answer, err := peerConnection.CreateAnswer(nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating answer: " + err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusInternalServerError,
+			Message: "Error creating answer: " + err.Error(),
+		})
 		return
 	}
 
 	if err := peerConnection.SetLocalDescription(answer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error describing local description: " + err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusInternalServerError,
+			Message: "Error describing local description: " + err.Error(),
+		})
 		return
 	}
 
@@ -97,7 +114,10 @@ func AudioOfferHandler(c *gin.Context) {
 
 	answerJSON, err := json.Marshal(peerConnection.LocalDescription())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error serializing answer: " + err.Error()})
+		error.RespondWithError(c, error.APIError{
+			Code:    http.StatusInternalServerError,
+			Message: "Error serializing answer: " + err.Error(),
+		})
 		return
 	}
 
