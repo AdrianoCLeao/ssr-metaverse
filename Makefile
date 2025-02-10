@@ -18,10 +18,6 @@ build:
 up:
 	docker-compose up -d
 
-# Start the server.
-run: 
-	go run ./cmd/main.go
-
 # Stop and remove the containers.
 down:
 	docker-compose down
