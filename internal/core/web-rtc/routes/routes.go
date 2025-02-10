@@ -9,5 +9,6 @@ func RegisterWebRTCRoutes(router *gin.Engine) {
 	group := router.Group("/webrtc")
 	{
 		group.GET("/hub", controllers.SignalWs)
+		group.GET("/audio", controllers.AudioOfferHandler)
 	}
 }
