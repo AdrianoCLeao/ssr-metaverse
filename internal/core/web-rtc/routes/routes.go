@@ -5,11 +5,13 @@ import (
 	"ssr-metaverse/internal/core/web-rtc/controllers" 
 )
 
+var room = controllers.NewRoom()
+
 func RegisterWebRTCRoutes(router *gin.Engine) {
 	group := router.Group("/webrtc")
 	{
 		group.GET("/chat", controllers.ChatHandler)
-		group.POST("/audio", controllers.AudioOfferHandler)
+		group.GET("/ws", gin.WrapH(controllers.WebRTCHandler(room)))
 		group.POST("/video", controllers.VideoOfferHandler)
 	}
 }

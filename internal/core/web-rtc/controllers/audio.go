@@ -2,213 +2,314 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
-	"ssr-metaverse/internal/core/error"
 )
 
-// SDP representa a estrutura do SDP recebido via JSON.
-type SDP struct {
-	SDP  string `json:"sdp"`
-	Type string `json:"type"`
+var config = webrtc.Configuration{
+	ICEServers: []webrtc.ICEServer{
+		{
+			URLs: []string{"stun:stun.l.google.com:19302"},
+		},
+	},
 }
 
-// Client representa cada cliente conectado ao SFU.
-type Client struct {
-	id             string
-	pc             *webrtc.PeerConnection
-	// subscriptions mapeia (por exemplo) o id do publicador para a TrackLocal que receberá
-	// os pacotes RTP daquele publicador.
-	subscriptions  map[string]*webrtc.TrackLocalStaticRTP
-	// published indica se o cliente já publicou (enviou) um track de áudio.
-	published      bool
-	// publisherCodec guarda o codec do track de áudio publicado (necessário para criação
-	// das tracks de assinatura).
-	publisherCodec *webrtc.RTPCodecCapability
+type websocketMessage struct {
+	Event string `json:"event"`
+	Data  string `json:"data"`
 }
 
-// Variáveis globais para controlar os clientes conectados.
-var (
-	sfuClients    = make(map[string]*Client)
-	sfuClientsMu  sync.Mutex
-	clientCounter int
-)
+type ThreadSafeWriter struct {
+	Conn  *websocket.Conn
+	Mutex sync.Mutex
+}
 
-// AudioOfferHandler lida com o SDP offer de um cliente e configura o PeerConnection.
-// Além disso, implementa a lógica básica de SFU para áudio.
-func AudioOfferHandler(c *gin.Context) {
-	var offer SDP
+func (t *ThreadSafeWriter) WriteJSON(v interface{}) error {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+	return t.Conn.WriteJSON(v)
+}
 
-	if err := c.BindJSON(&offer); err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusBadRequest,
-			Message: "Invalid SDP offer: " + err.Error(),
-		})
-		return
-	}
+type PeerConnectionState struct {
+	PeerConnection *webrtc.PeerConnection
+	Websocket      *ThreadSafeWriter
+}
 
-	// Configuração do STUN (para ICE)
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
+type Peers struct {
+	ListLock    sync.RWMutex
+	Connections []PeerConnectionState
+	TrackLocals map[string]*webrtc.TrackLocalStaticRTP
+}
+
+type Room struct {
+	Peers *Peers
+}
+
+func NewRoom() *Room {
+	return &Room{
+		Peers: &Peers{
+			Connections: make([]PeerConnectionState, 0),
+			TrackLocals: make(map[string]*webrtc.TrackLocalStaticRTP),
 		},
 	}
+}
 
-	peerConnection, err := webrtc.NewPeerConnection(config)
-	if err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusInternalServerError,
-			Message: "Error creating PeerConnection: " + err.Error(),
-		})
-		return
+func WebRTCHandler(room *Room) http.HandlerFunc {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 
-	// Cria um identificador único para o cliente.
-	sfuClientsMu.Lock()
-	clientCounter++
-	clientID := fmt.Sprintf("client-%d", clientCounter)
-	client := &Client{
-		id:            clientID,
-		pc:            peerConnection,
-		subscriptions: make(map[string]*webrtc.TrackLocalStaticRTP),
-	}
-	// Adiciona o novo cliente à lista global.
-	sfuClients[clientID] = client
-
-	// Se já existirem clientes que publicaram áudio, adiciona tracks de assinatura
-	// para que o novo cliente receba o áudio deles.
-	for _, other := range sfuClients {
-		if other.id == clientID {
-			continue
+	return func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Println("Erro ao fazer upgrade para WebSocket:", err)
+			return
 		}
-		if other.published && other.publisherCodec != nil {
-			newTrack, err := webrtc.NewTrackLocalStaticRTP(*other.publisherCodec, "audio", other.id)
+		defer ws.Close()
+
+		peerConnection, err := webrtc.NewPeerConnection(config)
+		if err != nil {
+			log.Println("Erro ao criar PeerConnection:", err)
+			return
+		}
+		defer peerConnection.Close()
+
+		for _, kind := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeAudio, webrtc.RTPCodecTypeVideo} {
+			_, err := peerConnection.AddTransceiverFromKind(kind, webrtc.RTPTransceiverInit{
+				Direction: webrtc.RTPTransceiverDirectionRecvonly,
+			})
 			if err != nil {
-				log.Printf("Error creating subscription track for publisher %s: %v", other.id, err)
-				continue
+				log.Println("Erro ao adicionar transceiver:", err)
+				return
 			}
-			if _, err := client.pc.AddTrack(newTrack); err != nil {
-				log.Printf("Error adding subscription track for publisher %s: %v", other.id, err)
-				continue
-			}
-			client.subscriptions[other.id] = newTrack
 		}
-	}
-	sfuClientsMu.Unlock()
 
-	// Quando um track for recebido (isto é, quando o cliente enviar áudio),
-	// este callback é chamado.
-	peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		log.Printf("Client %s received track: ID=%s, Kind=%s", clientID, remoteTrack.ID(), remoteTrack.Kind().String())
-		if remoteTrack.Kind() == webrtc.RTPCodecTypeAudio {
-			// O cliente está publicando áudio.
-			sfuClientsMu.Lock()
-			client.published = true
-			codecCap := remoteTrack.Codec().RTPCodecCapability
-			client.publisherCodec = &codecCap
-			// Para cada outro cliente já conectado, cria uma track de assinatura para receber
-			// o áudio deste publicador.
-			for _, other := range sfuClients {
-				if other.id == clientID {
-					continue
-				}
-				if _, exists := other.subscriptions[clientID]; !exists {
-					newTrack, err := webrtc.NewTrackLocalStaticRTP(codecCap, "audio", clientID)
-					if err != nil {
-						log.Printf("Error creating subscription track for client %s: %v", other.id, err)
-						continue
-					}
-					if _, err = other.pc.AddTrack(newTrack); err != nil {
-						log.Printf("Error adding subscription track for client %s: %v", other.id, err)
-						continue
-					}
-					other.subscriptions[clientID] = newTrack
-				}
+		writer := &ThreadSafeWriter{Conn: ws}
+		newPeer := PeerConnectionState{
+			PeerConnection: peerConnection,
+			Websocket:      writer,
+		}
+
+		room.Peers.AddPeer(newPeer)
+
+		peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+			if candidate == nil {
+				return
 			}
-			sfuClientsMu.Unlock()
+			candidateJSON, err := json.Marshal(candidate.ToJSON())
+			if err != nil {
+				log.Println("Erro ao serializar ICE candidate:", err)
+				return
+			}
+			msg := websocketMessage{
+				Event: "candidate",
+				Data:  string(candidateJSON),
+			}
+			if err := writer.WriteJSON(msg); err != nil {
+				log.Println("Erro ao enviar ICE candidate:", err)
+			}
+		})
 
-			// Inicia a leitura dos pacotes RTP e encaminha para todos os assinantes (clientes
-			// diferentes do publicador).
+		peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+			log.Printf("Peer recebeu track: ID=%s, Kind=%s", remoteTrack.ID(), remoteTrack.Kind().String())
+			localTrack, err := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, remoteTrack.ID(), remoteTrack.StreamID())
+			if err != nil {
+				log.Println("Erro ao criar localTrack:", err)
+				return
+			}
+
+			room.Peers.ListLock.Lock()
+			room.Peers.TrackLocals[remoteTrack.ID()] = localTrack
+			room.Peers.ListLock.Unlock()
+
+			room.Peers.SignalPeerConnections()
+
 			rtcpBuf := make([]byte, 1500)
 			for {
 				packet, _, err := remoteTrack.ReadRTP()
 				if err != nil {
-					log.Printf("Error reading RTP from client %s: %v", clientID, err)
+					log.Println("Erro ao ler RTP:", err)
 					break
 				}
-
-				// Para cada cliente conectado (exceto o próprio publicador) encaminha o pacote RTP.
-				sfuClientsMu.Lock()
-				for _, other := range sfuClients {
-					if other.id == clientID {
-						continue
-					}
-					if track, ok := other.subscriptions[clientID]; ok {
-						if err := track.WriteRTP(packet); err != nil {
-							log.Printf("Error writing RTP to client %s: %v", other.id, err)
-						}
-					}
+				if err := localTrack.WriteRTP(packet); err != nil {
+					log.Println("Erro ao escrever RTP:", err)
 				}
-				sfuClientsMu.Unlock()
-
-				// Opcionalmente, lê pacotes RTCP do receptor (para feedback, etc).
 				if _, _, err := receiver.Read(rtcpBuf); err != nil {
 					break
 				}
 			}
+		})
+
+		var candidateBuffer []webrtc.ICECandidateInit
+
+		for {
+			_, msgBytes, err := ws.ReadMessage()
+			if err != nil {
+				log.Println("Erro ao ler mensagem WebSocket:", err)
+				break
+			}
+			var msg websocketMessage
+			if err := json.Unmarshal(msgBytes, &msg); err != nil {
+				log.Println("Erro ao decodificar mensagem:", err)
+				continue
+			}
+			switch msg.Event {
+			case "offer":
+				var offer webrtc.SessionDescription
+				if err := json.Unmarshal([]byte(msg.Data), &offer); err != nil {
+					log.Println("Erro ao decodificar offer:", err)
+					continue
+				}
+				if err := peerConnection.SetRemoteDescription(offer); err != nil {
+					log.Println("Erro ao definir remote description:", err)
+					continue
+				}
+
+				for _, c := range candidateBuffer {
+					if err := peerConnection.AddICECandidate(c); err != nil {
+						log.Println("Erro ao adicionar candidato buffered:", err)
+					}
+				}
+				candidateBuffer = nil
+
+				answer, err := peerConnection.CreateAnswer(nil)
+				if err != nil {
+					log.Println("Erro ao criar answer:", err)
+					continue
+				}
+				if err := peerConnection.SetLocalDescription(answer); err != nil {
+					log.Println("Erro ao definir local description:", err)
+					continue
+				}
+				<-webrtc.GatheringCompletePromise(peerConnection)
+				answerJSON, err := json.Marshal(*peerConnection.LocalDescription())
+				if err != nil {
+					log.Println("Erro ao serializar answer:", err)
+					continue
+				}
+				response := websocketMessage{
+					Event: "answer",
+					Data:  string(answerJSON),
+				}
+				if err := writer.WriteJSON(response); err != nil {
+					log.Println("Erro ao enviar answer:", err)
+				}
+			case "candidate":
+				var candidate webrtc.ICECandidateInit
+				if err := json.Unmarshal([]byte(msg.Data), &candidate); err != nil {
+					log.Println("Erro ao decodificar candidate:", err)
+					continue
+				}
+				if peerConnection.RemoteDescription() == nil {
+					candidateBuffer = append(candidateBuffer, candidate)
+					log.Println("Buffering ICE candidate, remote description ainda não definida.")
+				} else {
+					if err := peerConnection.AddICECandidate(candidate); err != nil {
+						log.Println("Erro ao adicionar candidate:", err)
+					}
+				}
+			}
 		}
-	})
 
-	// Define o SDP remoto (oferta recebida).
-	sdpOffer := webrtc.SessionDescription{
-		Type: webrtc.SDPTypeOffer,
-		SDP:  offer.SDP,
+		room.Peers.RemovePeer(newPeer)
 	}
-	if err := peerConnection.SetRemoteDescription(sdpOffer); err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusInternalServerError,
-			Message: "Error setting remote description: " + err.Error(),
-		})
-		return
+}
+
+func (p *Peers) AddPeer(peer PeerConnectionState) {
+	p.ListLock.Lock()
+	p.Connections = append(p.Connections, peer)
+	p.ListLock.Unlock()
+	p.SignalPeerConnections()
+}
+
+func (p *Peers) RemovePeer(peer PeerConnectionState) {
+	p.ListLock.Lock()
+	defer p.ListLock.Unlock()
+	for i, conn := range p.Connections {
+		if conn == peer {
+			p.Connections = append(p.Connections[:i], p.Connections[i+1:]...)
+			break
+		}
 	}
+	p.SignalPeerConnections()
+}
 
-	// Cria e define a descrição local (a resposta).
-	answer, err := peerConnection.CreateAnswer(nil)
-	if err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusInternalServerError,
-			Message: "Error creating answer: " + err.Error(),
-		})
-		return
+func (p *Peers) SignalPeerConnections() {
+	p.ListLock.Lock()
+	defer p.ListLock.Unlock()
+
+	for i := range p.Connections {
+		pc := p.Connections[i].PeerConnection
+
+		existingTracks := map[string]bool{}
+		for _, sender := range pc.GetSenders() {
+			if sender.Track() == nil {
+				continue
+			}
+			existingTracks[sender.Track().ID()] = true
+			if _, ok := p.TrackLocals[sender.Track().ID()]; !ok {
+				if err := pc.RemoveTrack(sender); err != nil {
+					log.Println("Erro ao remover track:", err)
+				}
+			}
+		}
+
+		for trackID, track := range p.TrackLocals {
+			if !existingTracks[trackID] {
+				if _, err := pc.AddTrack(track); err != nil {
+					log.Println("Erro ao adicionar track:", err)
+				}
+			}
+		}
+
+		offer, err := pc.CreateOffer(nil)
+		if err != nil {
+			log.Println("Erro ao criar offer:", err)
+			continue
+		}
+		if err := pc.SetLocalDescription(offer); err != nil {
+			log.Println("Erro ao definir local description:", err)
+			continue
+		}
+		offerJSON, err := json.Marshal(offer)
+		if err != nil {
+			log.Println("Erro ao serializar offer:", err)
+			continue
+		}
+		msg := websocketMessage{
+			Event: "offer",
+			Data:  string(offerJSON),
+		}
+		if err := p.Connections[i].Websocket.WriteJSON(msg); err != nil {
+			log.Println("Erro ao enviar offer:", err)
+		}
 	}
+}
 
-	if err := peerConnection.SetLocalDescription(answer); err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusInternalServerError,
-			Message: "Error setting local description: " + err.Error(),
-		})
-		return
+func DispatchKeyFrames(p *Peers) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		p.ListLock.Lock()
+		for _, conn := range p.Connections {
+			for _, receiver := range conn.PeerConnection.GetReceivers() {
+				if receiver.Track() == nil {
+					continue
+				}
+				err := conn.PeerConnection.WriteRTCP([]rtcp.Packet{
+					&rtcp.PictureLossIndication{MediaSSRC: uint32(receiver.Track().SSRC())},
+				})
+				if err != nil {
+					log.Println("Erro ao enviar RTCP PLI:", err)
+				}
+			}
+		}
+		p.ListLock.Unlock()
 	}
-
-	// Aguarda a conclusão da gathering dos ICE candidates.
-	gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
-	<-gatherComplete
-
-	answerJSON, err := json.Marshal(peerConnection.LocalDescription())
-	if err != nil {
-		error.RespondWithError(c, error.APIError{
-			Code:    http.StatusInternalServerError,
-			Message: "Error serializing answer: " + err.Error(),
-		})
-		return
-	}
-
-	c.Data(http.StatusOK, "application/json", answerJSON)
 }
