@@ -1,311 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebRTC Meet with Audio Visualizer</title>
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: Arial, sans-serif;
-        background-color: #222;
-        color: #fff;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      header {
-        margin: 20px;
-      }
-      h1,
-      h2 {
-        text-align: center;
-      }
-      #media-options {
-        background: #333;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-      }
-      #media-options label {
-        display: block;
-        margin: 10px 0;
-        font-size: 1.1em;
-      }
-      #media-options button {
-        padding: 10px 20px;
-        font-size: 1em;
-        background: #0a84ff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        margin-top: 10px;
-      }
-      #media-options button:hover {
-        background: #0066cc;
-      }
-      .hidden {
-        display: none;
-      }
-      #visualizer-section {
-        margin: 20px;
-      }
-      .visualizer {
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        background: radial-gradient(circle, #0f0, #090);
-        margin: 0 auto;
-        transform: scale(1);
-        transition: transform 0.1s ease-out;
-      }
-      #video-section,
-      #audio-section {
-        background: #333;
-        padding: 20px;
-        border-radius: 8px;
-        margin: 10px 0;
-        width: 90%;
-        max-width: 600px;
-      }
-      video,
-      audio {
-        width: 100%;
-        border-radius: 8px;
-      }
-    </style>
+    <meta charset="utf-8">
   </head>
   <body>
-    <header>
-      <h1>WebRTC Meet with Audio Visualizer</h1>
-    </header>
+    <h3> Local Video </h3>
+    <video id="localVideo" width="160" height="120" autoplay muted></video> <br />
 
-    <section id="media-options">
-      <h2>Media Options</h2>
-      <label>
-        <input type="checkbox" id="enable-audio" />
-        Enable Audio
-      </label>
-      <label>
-        <input type="checkbox" id="enable-video" />
-        Enable Video
-      </label>
-      <label>
-        <input type="checkbox" id="is-speaker" />
-        I want to speak
-      </label>
-      <button id="start-session">Join Meeting</button>
-    </section>
+    <h3> Remote Video </h3>
+    <div id="remoteVideos"></div> <br />
 
-    <section id="visualizer-section" class="hidden">
-      <div id="audio-visualizer" class="visualizer"></div>
-    </section>
+    <h3> Logs </h3>
+    <div id="logs"></div>
 
-    <section id="video-section" class="hidden">
-      <h2>Video</h2>
-      <video id="remoteVideo" autoplay playsinline></video>
-    </section>
 
-    <section id="audio-section" class="hidden">
-      <h2>Audio</h2>
-      <audio id="remoteAudio" autoplay></audio>
-    </section>
-
-    <script>
-      const WEBSOCKET_SERVER_URL = "ws://localhost:8080/webrtc/ws";
-      const rtcConfig = {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      };
-
-      let pc = null;
-      let ws = null;
-      let candidateBuffer = [];
-      let localAudioStream = null;
-      let localVideoStream = null;
-
-      function logDebug(message, data = null) {
-        console.log(`🔍 DEBUG: ${message}`, data);
-      }
-
-      async function startWebRTC(enableAudio, enableVideo, isSpeaker) {
-        try {
-          pc = new RTCPeerConnection(rtcConfig);
-
-          pc.oniceconnectionstatechange = () => {
-            logDebug("ICE connection state:", pc.iceConnectionState);
-          };
-          pc.onconnectionstatechange = () => {
-            logDebug("Overall connection state:", pc.connectionState);
-          };
-
-          pc.onicecandidate = (event) => {
-            if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
-              const candidateMessage = {
-                event: "candidate",
-                data: JSON.stringify(event.candidate),
-              };
-              ws.send(JSON.stringify(candidateMessage));
-              logDebug("Enviado ICE candidate:", event.candidate);
-            }
-          };
-
-          pc.ontrack = (event) => {
-            logDebug("Recebeu track remota:", event);
-            if (event.track.kind === "audio") {
-              const remoteAudio = document.getElementById("remoteAudio");
-              remoteAudio.srcObject = (event.streams && event.streams[0]) 
-                ? event.streams[0] 
-                : new MediaStream([event.track]);
-              remoteAudio.play()
-                .then(() => logDebug("Áudio remoto reproduzido"))
-                .catch(e => console.error("Erro ao reproduzir áudio:", e));
-            } else if (event.track.kind === "video") {
-              const remoteVideo = document.getElementById("remoteVideo");
-              remoteVideo.srcObject = (event.streams && event.streams[0])
-                ? event.streams[0]
-                : new MediaStream([event.track]);
-              remoteVideo.play()
-                .then(() => logDebug("Vídeo remoto reproduzido"))
-                .catch(e => console.error("Erro ao reproduzir vídeo:", e));
-            }
-          };
-
-          ws = new WebSocket(WEBSOCKET_SERVER_URL);
-
-          ws.onopen = async () => {
-            logDebug("Conexão WebSocket estabelecida.");
-
-            if (enableAudio) {
-              if (isSpeaker) {
-                localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                localAudioStream.getAudioTracks().forEach(track => {
-                  logDebug("Adicionando track de áudio local:", track);
-                  pc.addTrack(track, localAudioStream);
-                });
-                setupAudioVisualizer(localAudioStream);
-              } else {
-                logDebug("Modo ouvinte: adicionando transceiver de áudio em recvonly.");
-                pc.addTransceiver("audio", { direction: "recvonly" });
-              }
-            }
-
-            if (enableVideo) {
-              localVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              localVideoStream.getVideoTracks().forEach(track => {
-                logDebug("Adicionando track de vídeo local:", track);
-                pc.addTrack(track, localVideoStream);
-              });
-            }
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            logDebug("SDP local definido:", offer.sdp);
-
-            await new Promise(resolve => {
-              if (pc.iceGatheringState === "complete") {
-                logDebug("ICE gathering já completo.");
-                resolve();
-              } else {
-                const checkState = () => {
-                  if (pc.iceGatheringState === "complete") {
-                    pc.removeEventListener("icegatheringstatechange", checkState);
-                    logDebug("ICE gathering completo.");
-                    resolve();
-                  }
-                };
-                pc.addEventListener("icegatheringstatechange", checkState);
-              }
-            });
-
-            const offerMessage = {
-              event: "offer",
-              data: JSON.stringify(pc.localDescription),
-            };
-            ws.send(JSON.stringify(offerMessage));
-            logDebug("Oferta SDP enviada via WebSocket:", offerMessage);
-          };
-
-          ws.onmessage = async (event) => {
-            const message = JSON.parse(event.data);
-            logDebug("Mensagem recebida via WebSocket:", message);
-            if (message.event === "answer") {
-              const answer = JSON.parse(message.data);
-              await pc.setRemoteDescription(answer);
-              logDebug("SDP remoto definido com sucesso.");
-              for (const candidate of candidateBuffer) {
-                try {
-                  await pc.addIceCandidate(candidate);
-                  logDebug("ICE candidate do buffer adicionado:", candidate);
-                } catch (e) {
-                  console.error("Erro ao adicionar ICE candidate do buffer:", e);
-                }
-              }
-              candidateBuffer = [];
-            } else if (message.event === "candidate") {
-              const candidate = JSON.parse(message.data);
-              if (!pc.remoteDescription) {
-                candidateBuffer.push(candidate);
-                logDebug("Bufferizando ICE candidate (remoteDescription nula):", candidate);
-              } else {
-                try {
-                  await pc.addIceCandidate(candidate);
-                  logDebug("ICE candidate adicionado:", candidate);
-                } catch (e) {
-                  console.error("Erro ao adicionar ICE candidate:", e);
-                }
-              }
-            } else if (message.event === "offer") {
-              logDebug("Oferta recebida do servidor. Ignorando renegociação.");
-            }
-          };
-
-          ws.onerror = (error) => {
-            console.error("Erro na conexão WebSocket:", error);
-          };
-
-          ws.onclose = () => {
-            logDebug("Conexão WebSocket fechada.");
-          };
-
-          if (enableVideo) {
-            document.getElementById("video-section").classList.remove("hidden");
-          }
-          if (enableAudio) {
-            document.getElementById("audio-section").classList.remove("hidden");
-            document.getElementById("visualizer-section").classList.remove("hidden");
-          }
-        } catch (error) {
-          console.error("❌ Erro na inicialização do WebRTC:", error);
-        }
-      }
-
-      function setupAudioVisualizer(stream) {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-        logDebug("Visualizador de áudio inicializado.");
-
-        function updateVisualizer() {
-          analyser.getByteFrequencyData(dataArray);
-          const sum = dataArray.reduce((total, value) => total + value, 0);
-          const scale = 1 + (sum / dataArray.length / 255) * 0.5;
-          document.getElementById("audio-visualizer").style.transform = `scale(${scale})`;
-          requestAnimationFrame(updateVisualizer);
-        }
-        updateVisualizer();
-      }
-
-      document.getElementById("start-session").addEventListener("click", () => {
-        const enableAudio = document.getElementById("enable-audio").checked;
-        const enableVideo = document.getElementById("enable-video").checked;
-        const isSpeaker = document.getElementById("is-speaker").checked;
-        document.getElementById("start-session").disabled = true;
-        startWebRTC(enableAudio, enableVideo, isSpeaker);
-      });
-    </script>
   </body>
+
+  <script>
+    const WS_URL = "ws://localhost:8080/webrtc/ws";
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    .then(stream => {
+      let pc = new RTCPeerConnection()
+      pc.ontrack = function (event) {
+        if (event.track.kind === 'audio') {
+          return
+        }
+
+        let el = document.createElement(event.track.kind)
+        el.srcObject = event.streams[0]
+        el.autoplay = true
+        el.controls = true
+        document.getElementById('remoteVideos').appendChild(el)
+
+        event.track.onmute = function(event) {
+          el.play()
+        }
+
+        event.streams[0].onremovetrack = ({track}) => {
+          if (el.parentNode) {
+            el.parentNode.removeChild(el)
+          }
+        }
+      }
+
+      document.getElementById('localVideo').srcObject = stream
+      stream.getTracks().forEach(track => pc.addTrack(track, stream))
+
+      let ws = new WebSocket(WS_URL)
+      pc.onicecandidate = e => {
+        if (!e.candidate) {
+          return
+        }
+
+        ws.send(JSON.stringify({event: 'candidate', data: JSON.stringify(e.candidate)}))
+      }
+
+      ws.onclose = function(evt) {
+        window.alert("Websocket has closed")
+      }
+
+      ws.onmessage = function(evt) {
+        let msg = JSON.parse(evt.data)
+        if (!msg) {
+          return console.log('failed to parse msg')
+        }
+
+        switch (msg.event) {
+          case 'offer':
+            let offer = JSON.parse(msg.data)
+            if (!offer) {
+              return console.log('failed to parse answer')
+            }
+            pc.setRemoteDescription(offer)
+            pc.createAnswer().then(answer => {
+              pc.setLocalDescription(answer)
+              ws.send(JSON.stringify({event: 'answer', data: JSON.stringify(answer)}))
+            })
+            return
+
+          case 'candidate':
+            let candidate = JSON.parse(msg.data)
+            if (!candidate) {
+              return console.log('failed to parse candidate')
+            }
+
+            pc.addIceCandidate(candidate)
+        }
+      }
+
+      ws.onerror = function(evt) {
+        console.log("ERROR: " + evt.data)
+      }
+    }).catch(window.alert)
+  </script>
 </html>

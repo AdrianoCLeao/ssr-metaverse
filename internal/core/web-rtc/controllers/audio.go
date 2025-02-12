@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"net/http"
-	"os"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +19,6 @@ var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
-	indexTemplate = &template.Template{}
 
 	listLock        sync.RWMutex
 	peerConnections []peerConnectionState
@@ -44,21 +41,9 @@ func MediaHandler(c *gin.Context) {
 	flag.Parse()
 	trackLocals = map[string]*webrtc.TrackLocalStaticRTP{}
 
-	indexHTML, err := os.ReadFile("index.html")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar index.html"})
-		return
-	}
-	indexTemplate = template.Must(template.New("").Parse(string(indexHTML)))
-
 	if websocket.IsWebSocketUpgrade(c.Request) {
 		websocketHandler(c.Writer, c.Request)
 		return
-	}
-
-	c.Writer.Header().Set("Content-Type", "text/html")
-	if err = indexTemplate.Execute(c.Writer, "ws://"+c.Request.Host+"/webrtc/ws"); err != nil {
-		log.Errorf("Erro ao renderizar template: %v", err)
 	}
 }
 
