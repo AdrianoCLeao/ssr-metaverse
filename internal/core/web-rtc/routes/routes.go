@@ -9,7 +9,6 @@ func RegisterWebRTCRoutes(router *gin.Engine) {
 	group := router.Group("/webrtc")
 	{
 		group.GET("/chat", controllers.ChatHandler)
-		group.GET("/audio", controllers.AudioOfferHandler)
-		group.GET("/video", controllers.VideoOfferHandler)
+		group.GET("/ws", controllers.MediaHandler)
 	}
 }
