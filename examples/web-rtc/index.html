@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebRTC Meet with Audio Visualizer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            margin: 20px;
+        }
+
+        h1,
+        h2 {
+            text-align: center;
+        }
+
+        #media-options {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        #media-options label {
+            display: block;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        #media-options button {
+            padding: 10px 20px;
+            font-size: 1em;
+            background: #0a84ff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #media-options button:hover {
+            background: #0066cc;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #visualizer-section {
+            margin: 20px;
+        }
+
+        .visualizer {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #0f0, #090);
+            margin: 0 auto;
+            transform: scale(1);
+            transition: transform 0.1s ease-out;
+        }
+
+        #video-section,
+        #audio-section {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        video,
+        audio {
+            width: 100%;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>WebRTC Meet with Audio Visualizer</h1>
+    </header>
+
+    <section id="media-options">
+        <h2>Media Options</h2>
+        <label>
+            <input type="checkbox" id="enable-audio">
+            Enable Audio
+        </label>
+        <label>
+            <input type="checkbox" id="enable-video">
+            Enable Video
+        </label>
+        <label>
+            <input type="checkbox" id="is-speaker">
+            I want to speak
+        </label>
+        <button id="start-session">Join Meeting</button>
+    </section>
+
+    <section id="visualizer-section" class="hidden">
+        <div id="audio-visualizer" class="visualizer"></div>
+    </section>
+
+    <section id="video-section" class="hidden">
+        <h2>Video</h2>
+        <video id="remoteVideo" autoplay playsinline></video>
+    </section>
+
+    <section id="audio-section" class="hidden">
+        <h2>Audio</h2>
+        <audio id="remoteAudio" autoplay></audio>
+    </section>
+
+    <script>
+        const AUDIO_SERVER_URL = 'http://localhost:8080/webrtc/audio';
+        const VIDEO_SERVER_URL = 'http://localhost:8080/webrtc/video';
+        let audioPc = null, videoPc = null;
+        let localAudioStream = null, localVideoStream = null;
+        const rtcConfig = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
+
+        function logDebug(message, data = null) {
+            console.log(`🔍 DEBUG: ${message}`, data);
+        }
+
+        async function startWebRTC(enableAudio, enableVideo, isSpeaker) {
+            try {
+                if (enableAudio && isSpeaker) {
+                    localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    setupAudioVisualizer(localAudioStream);
+                }
+                if (enableVideo) {
+                    localVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                }
+
+                if (enableAudio) {
+                    document.getElementById('visualizer-section').classList.remove('hidden');
+                    audioPc = new RTCPeerConnection(rtcConfig);
+
+                    logDebug("Created PeerConnection for Audio", audioPc);
+
+                    if (isSpeaker && localAudioStream) {
+                        localAudioStream.getAudioTracks().forEach(track => {
+                            logDebug("Adding local audio track:", track);
+                            audioPc.addTrack(track, localAudioStream);
+                        });
+                    } else {
+                        logDebug("Listener mode: adding recvonly transceiver.");
+                        audioPc.addTransceiver('audio', { direction: 'recvonly' });
+                    }
+
+                    audioPc.ontrack = (event) => {
+                        console.log("🔊 Audio track event received", event);
+
+                        const remoteAudio = document.getElementById('remoteAudio');
+
+                        if (event.streams && event.streams[0]) {
+                            remoteAudio.srcObject = event.streams[0];
+                            console.log("✅ Remote audio stream set.");
+                        } else {
+                            remoteAudio.srcObject = new MediaStream([event.track]);
+                            console.log("⚠️ No stream in event, created new MediaStream from track.");
+                        }
+
+                        // Force playback in case the browser blocks autoplay
+                        setTimeout(() => {
+                            remoteAudio.play().then(() => {
+                                console.log("🔊 Auto-play successful.");
+                            }).catch(e => console.error("❌ Auto-play failed:", e));
+                        }, 2000);
+                    };
+
+                    audioPc.oniceconnectionstatechange = () => {
+                        logDebug("❄️ ICE state changed:", audioPc.iceConnectionState);
+                    };
+
+                    await negotiate(audioPc, AUDIO_SERVER_URL);
+                }
+            } catch (error) {
+                console.error('❌ ERROR: WebRTC Initialization Failed:', error);
+            }
+        }
+
+        async function negotiate(pc, serverUrl) {
+            try {
+                logDebug(`📡 Sending SDP Offer to ${serverUrl}`);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                logDebug("📡 Local SDP set:", offer.sdp);
+
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === 'complete') {
+                        logDebug("❄️ ICE gathering complete.");
+                        resolve();
+                    } else {
+                        const checkState = () => {
+                            if (pc.iceGatheringState === 'complete') {
+                                pc.removeEventListener('icegatheringstatechange', checkState);
+                                logDebug("❄️ ICE gathering complete.");
+                                resolve();
+                            }
+                        };
+                        pc.addEventListener('icegatheringstatechange', checkState);
+                    }
+                });
+
+                const response = await fetch(serverUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+                });
+
+                if (!response.ok) throw new Error(`❌ SDP negotiation failed: ${response.statusText}`);
+
+                const answer = await response.json();
+                logDebug("📡 Received SDP Answer", answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                logDebug("📡 Remote SDP set successfully.");
+            } catch (error) {
+                console.error('❌ ERROR during SDP negotiation:', error);
+            }
+        }
+
+        function setupAudioVisualizer(stream) {
+            let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            let analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            let dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            logDebug("🎛️ Audio visualizer initialized.");
+
+            function updateVisualizer() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = dataArray.reduce((total, value) => total + value, 0);
+                let scale = 1 + (sum / dataArray.length / 255) * 0.5;
+                document.getElementById('audio-visualizer').style.transform = `scale(${scale})`;
+                requestAnimationFrame(updateVisualizer);
+            }
+            updateVisualizer();
+        }
+
+        document.getElementById('start-session').addEventListener('click', () => {
+            let enableAudio = document.getElementById('enable-audio').checked;
+            let enableVideo = document.getElementById('enable-video').checked;
+            let isSpeaker = document.getElementById('is-speaker').checked;
+            startWebRTC(enableAudio, enableVideo, isSpeaker);
+        });
+    </script>
+</body>
+
+</html>
