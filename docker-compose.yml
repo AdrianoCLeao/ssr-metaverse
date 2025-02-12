@@ -7,12 +7,16 @@ services:
       - "8080:8080"
     depends_on:
       - db
+      - minio
     environment:
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DB_NAME=metaverse
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
     volumes:
       - ./scripts:/scripts
 
@@ -44,6 +48,21 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
+  minio:
+    image: minio/minio:latest
+    container_name: metaverse_minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
 volumes:
   db_data:
   pgadmin_data:
+  minio_data:
