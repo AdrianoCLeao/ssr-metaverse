@@ -18,4 +18,7 @@ var (
 	RedisHost = os.Getenv("REDIS_HOST")
 	RedisPort = os.Getenv("REDIS_PORT")
 	RedisPassword = os.Getenv("REDIS_PASSWORD")
+
+	MongoURI = os.Getenv("MONGO_HOST")
+	MongoDBName = os.Getenv("MONGO_NAME")
 )
