@@ -18,10 +18,21 @@ func NewObjectController(service *services.ObjectService) *ObjectController {
 func (c *ObjectController) UploadObject(ctx *gin.Context) {
 	bucketName := ctx.PostForm("bucket")
 	objectName := ctx.PostForm("object")
-	filePath := ctx.PostForm("path")
-	contentType := ctx.PostForm("content_type")
 
-	err := c.Service.UploadObject(bucketName, objectName, filePath, contentType)
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "File upload failed"})
+		return
+	}
+
+	metadata := map[string]string{
+		"content_type": ctx.PostForm("content_type"),
+		"author":       ctx.PostForm("author"),
+		"description":  ctx.PostForm("description"),
+		"version":      ctx.PostForm("version"),
+	}
+
+	err = c.Service.UploadObject(bucketName, objectName, file, metadata)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
