@@ -16,7 +16,5 @@ func RegisterObjectRoutes(router *gin.Engine) {
 	{
 		objects.POST("/upload", objectController.UploadObject)
 		objects.GET("/list/:bucket", objectController.ListObjects)
-		objects.DELETE("/:bucket/:object", objectController.DeleteObject)
-		objects.GET("/url/:bucket/:object", objectController.GetObjectURL)
 	}
 }

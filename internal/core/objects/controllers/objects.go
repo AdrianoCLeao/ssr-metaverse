@@ -41,29 +41,3 @@ func (c *ObjectController) ListObjects(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"objects": objects})
 }
-
-func (c *ObjectController) DeleteObject(ctx *gin.Context) {
-	bucketName := ctx.Param("bucket")
-	objectName := ctx.Param("object")
-
-	err := c.Service.DeleteObject(bucketName, objectName)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{"message": "Object deleted successfully"})
-}
-
-func (c *ObjectController) GetObjectURL(ctx *gin.Context) {
-	bucketName := ctx.Param("bucket")
-	objectName := ctx.Param("object")
-
-	url, err := c.Service.GetObjectURL(bucketName, objectName)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{"url": url})
-}

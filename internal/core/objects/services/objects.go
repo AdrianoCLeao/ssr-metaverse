@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
 	"ssr-metaverse/internal/database"
 
 	"github.com/minio/minio-go/v7"
@@ -39,24 +38,4 @@ func (s *ObjectService) ListObjects(bucketName string) ([]minio.ObjectInfo, erro
 		objects = append(objects, object)
 	}
 	return objects, nil
-}
-
-func (s *ObjectService) DeleteObject(bucketName, objectName string) error {
-	ctx := context.Background()
-	err := s.Storage.(*database.MinioStorage).Client.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to delete object: %w", err)
-	}
-	return nil
-}
-
-func (s *ObjectService) GetObjectURL(bucketName, objectName string) (string, error) {
-	ctx := context.Background()
-	reqParams := url.Values{} 
-
-	url, err := s.Storage.(*database.MinioStorage).Client.PresignedGetObject(ctx, bucketName, objectName, 0, reqParams)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate object URL: %w", err)
-	}
-	return url.String(), nil
 }
