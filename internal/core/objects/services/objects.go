@@ -15,6 +15,7 @@ import (
 type ObjectService struct {
 	Storage database.MinioInterface
 	MongoDB *database.Mongo
+	Redis *database.Redis
 }
 
 func NewObjectService(storage database.MinioInterface) *ObjectService {
@@ -61,6 +62,8 @@ func (s *ObjectService) UploadObject(bucketName, objectName string, file *multip
 	if err != nil {
 		return fmt.Errorf("failed to save metadata in MongoDB: %w", err)
 	}
+
+	_ = s.Redis.Set("world-object", metadataDoc, 3600)
 
 	return nil
 }
