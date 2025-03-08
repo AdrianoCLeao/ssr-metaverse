@@ -8,6 +8,8 @@ services:
     depends_on:
       - db
       - minio
+      - mongo
+      - redis
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -17,6 +19,9 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - MONGO_URI=mongodb://mongo:27017/metaverse
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./scripts:/scripts
 
@@ -62,7 +67,29 @@ services:
     volumes:
       - minio_data:/data
 
+  mongo:
+    image: mongo:6
+    container_name: metaverse_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: metaverse
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:latest
+    container_name: metaverse_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   db_data:
   pgadmin_data:
   minio_data:
+  mongo_data:
+  redis_data:
