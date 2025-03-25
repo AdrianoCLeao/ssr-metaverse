@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"ssr-metaverse/internal/config"
 
 	"github.com/minio/minio-go/v7"
@@ -14,7 +15,7 @@ type MinioInterface interface {
 	Connect() error
 	BucketExists(bucketName string) (bool, error)
 	CreateBucket(bucketName string) error
-	UploadObject(bucketName, objectName, filePath, contentType string) error
+	UploadObjectFromReader(bucketName, objectName string, reader multipart.File, size int64, contentType string, metadata map[string]string) error
 }
 
 type MinioStorage struct {
@@ -72,16 +73,23 @@ func (m *MinioStorage) CreateBucket(bucketName string) error {
 	return nil
 }
 
-func (m *MinioStorage) UploadObject(bucketName, objectName, filePath, contentType string) error {
+func (m *MinioStorage) UploadObjectFromReader(bucketName, objectName string, reader multipart.File, size int64, contentType string, metadata map[string]string) error {
 	ctx := context.Background()
 
-	_, err := m.Client.FPutObject(ctx, bucketName, objectName, filePath, minio.PutObjectOptions{
-		ContentType: contentType,
-	})
+	_, err := m.Client.PutObject(
+		ctx,
+		bucketName,
+		objectName,
+		reader,
+		size,
+		minio.PutObjectOptions{
+			ContentType:  contentType,
+			UserMetadata: metadata,
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("error uploading object %s: %w", objectName, err)
+		return fmt.Errorf("error uploading object to MinIO: %w", err)
 	}
-
-	log.Printf("Object %s uploaded to bucket %s\n", objectName, bucketName)
 	return nil
 }
+

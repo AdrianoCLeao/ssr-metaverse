@@ -26,7 +26,7 @@ func main() {
     swagger.SwaggerInfo.BasePath = "/"
     swagger.SwaggerInfo.Schemes = []string{"http"}
 
-	srv := server.NewServer(db)
+	srv := server.NewServer(db, minio)
 	
 	log.Println("Starting server on :8080")
 	

@@ -32,6 +32,7 @@ type Server struct {
 	Mutex    sync.Mutex
 	Upgrader websocket.Upgrader
 	DB       database.DBInterface
+	Minio    database.MinioInterface
 }
 
 /*
@@ -64,7 +65,7 @@ func filterObjects(world *World, clientPos [3]float64, maxDistance float64) map[
 /*
    Creates and initializes a new Server instance.
 */
-func NewServer(db database.DBInterface) *Server {
+func NewServer(db database.DBInterface, minio database.MinioInterface) *Server{
 	return &Server{
 		Clients: make(map[string]*Client),
 		Upgrader: websocket.Upgrader{
@@ -72,7 +73,8 @@ func NewServer(db database.DBInterface) *Server {
 				return true
 			},
 		},
-		DB: db,
+		DB:    db,
+		Minio: minio, 
 	}
 }
 

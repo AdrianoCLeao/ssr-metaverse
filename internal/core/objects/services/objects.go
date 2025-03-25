@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -15,7 +16,7 @@ import (
 type ObjectService struct {
 	Storage database.MinioInterface
 	MongoDB *database.Mongo
-	Redis *database.Redis
+	Redis   *database.Redis
 }
 
 func NewObjectService(storage database.MinioInterface) *ObjectService {
@@ -23,31 +24,25 @@ func NewObjectService(storage database.MinioInterface) *ObjectService {
 }
 
 func (s *ObjectService) UploadObject(bucketName, objectName string, file *multipart.FileHeader, metadata map[string]string) error {
-	ctx := context.Background()
-	
+	log.Println("⚙️  [Service] UploadObject iniciado")
+
+	_ = context.Background()
 	src, err := file.Open()
 	if err != nil {
+		log.Println("❌ [Service] Falha ao abrir arquivo:", err)
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer src.Close()
+	log.Printf("📁 [Service] Arquivo aberto: %s (%d bytes)\n", file.Filename, file.Size)
 
-	uploadInfo, err := s.Storage.(*database.MinioStorage).Client.PutObject(
-		ctx,
-		bucketName,
-		objectName,
-		src,
-		file.Size,
-		minio.PutObjectOptions{
-			ContentType: metadata["content_type"],
-			UserMetadata: metadata,
-		},
-	)
+	log.Println("🚀 [Service] Enviando para MinIO...")
+	err = s.Storage.UploadObjectFromReader(bucketName, objectName, src, file.Size, metadata["content_type"], metadata)
 	if err != nil {
+		log.Println("❌ [Service] Falha ao fazer upload no MinIO:", err)
 		return fmt.Errorf("failed to upload object: %w", err)
 	}
 
-	log.Printf("Successfully uploaded: %s, Size: %d", uploadInfo.Key, uploadInfo.Size)
-
+	log.Println("🧾 [Service] Gerando metadados para MongoDB")
 	metadataDoc := bson.M{
 		"bucket":       bucketName,
 		"object_name":  objectName,
@@ -57,14 +52,29 @@ func (s *ObjectService) UploadObject(bucketName, objectName string, file *multip
 		"version":      metadata["version"],
 		"uploaded_at":  time.Now(),
 	}
+	log.Printf("🧾 [Service] Documento: %+v\n", metadataDoc)
 
 	_, err = s.MongoDB.InsertOne("objects_metadata", metadataDoc)
 	if err != nil {
+		log.Println("❌ [Service] Falha ao salvar no MongoDB:", err)
 		return fmt.Errorf("failed to save metadata in MongoDB: %w", err)
 	}
+	log.Println("✅ [Service] Metadados salvos no MongoDB")
 
-	_ = s.Redis.Set("world-object", metadataDoc, 3600)
+	docJSON, err := json.Marshal(metadataDoc)
+	if err != nil {
+		log.Println("❌ [Service] Falha ao serializar metadados para Redis:", err)
+		return fmt.Errorf("failed to serialize metadata for Redis: %w", err)
+	}
 
+	err = s.Redis.Set("world-object:"+objectName, docJSON, 3600)
+	if err != nil {
+		log.Println("❌ [Service] Falha ao salvar metadados no Redis:", err)
+		return fmt.Errorf("failed to cache metadata in Redis: %w", err)
+	}
+	log.Println("✅ [Service] Metadados salvos no Redis com TTL 3600s")
+
+	log.Println("🎉 [Service] Upload finalizado com sucesso!")
 	return nil
 }
 
