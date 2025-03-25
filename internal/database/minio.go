@@ -76,7 +76,19 @@ func (m *MinioStorage) CreateBucket(bucketName string) error {
 func (m *MinioStorage) UploadObjectFromReader(bucketName, objectName string, reader multipart.File, size int64, contentType string, metadata map[string]string) error {
 	ctx := context.Background()
 
-	_, err := m.Client.PutObject(
+	exists, err := m.Client.BucketExists(ctx, bucketName)
+	if err != nil {
+		return fmt.Errorf("error checking if bucket exists: %w", err)
+	}
+
+	if !exists {
+		err = m.Client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
+		if err != nil {
+			return fmt.Errorf("error creating bucket: %w", err)
+		}
+	}
+
+	_, err = m.Client.PutObject(
 		ctx,
 		bucketName,
 		objectName,
@@ -92,4 +104,5 @@ func (m *MinioStorage) UploadObjectFromReader(bucketName, objectName string, rea
 	}
 	return nil
 }
+
 

@@ -24,6 +24,8 @@ services:
       - REDIS_PORT=6379
     volumes:
       - ./scripts:/scripts
+    env_file:
+      - .env
 
   db:
     image: postgres:15
