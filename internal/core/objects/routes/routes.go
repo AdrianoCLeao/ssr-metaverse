@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterObjectRoutes(router *gin.Engine, storage database.MinioInterface, mongo database.MongoInterface) {
-	objectService := services.NewObjectService(storage, mongo)
+func RegisterObjectRoutes(router *gin.Engine, storage database.MinioInterface, mongo database.MongoInterface, redis database.RedisInterface) {
+	objectService := services.NewObjectService(storage, mongo, redis)
 	objectController := controllers.NewObjectController(objectService)
 
 	objects := router.Group("/objects")

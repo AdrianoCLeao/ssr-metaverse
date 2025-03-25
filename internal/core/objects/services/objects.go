@@ -16,13 +16,14 @@ import (
 type ObjectService struct {
 	Minio database.MinioInterface
 	MongoDB database.MongoInterface
-	Redis   *database.Redis
+	Redis   database.RedisInterface
 }
 
-func NewObjectService(minio database.MinioInterface, mongo database.MongoInterface) *ObjectService {
+func NewObjectService(minio database.MinioInterface, mongo database.MongoInterface, redis database.RedisInterface) *ObjectService {
 	return &ObjectService{
 		Minio: minio,
 		MongoDB: mongo,
+		Redis: redis,
 	}
 }
 

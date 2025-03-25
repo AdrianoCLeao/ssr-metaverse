@@ -26,6 +26,12 @@ func main() {
 	}
 	database.MongoInstance = mongo
 
+	redis := &database.Redis{}
+	if err := redis.Connect(); err != nil {
+		log.Fatalf("Erro ao conectar ao Redis: %v", err)
+	}
+	database.RedisInstance = redis
+
 	swagger.SwaggerInfo.Title = "SSR Metaverse API"
 	swagger.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
 	swagger.SwaggerInfo.Version = "1.0"
@@ -33,7 +39,7 @@ func main() {
 	swagger.SwaggerInfo.BasePath = "/"
 	swagger.SwaggerInfo.Schemes = []string{"http"}
 
-	srv := server.NewServer(db, minio, mongo)
+	srv := server.NewServer(db, minio, mongo, redis)
 
 	log.Println("Starting server on :8080")
 

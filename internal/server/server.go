@@ -47,7 +47,7 @@ func (s *Server) Start(addr string) error {
 	routes.RegisterUserRoutes(router, s.DB)
 	routes.RegisterProtectedRoutes(router)
 
-	objects.RegisterObjectRoutes(router, s.Minio, s.Mongo)
+	objects.RegisterObjectRoutes(router, s.Minio, s.Mongo, s.Redis)
 
 	web_rtc.RegisterWebRTCRoutes(router)
 
