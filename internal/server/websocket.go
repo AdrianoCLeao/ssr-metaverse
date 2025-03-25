@@ -33,6 +33,7 @@ type Server struct {
 	Upgrader websocket.Upgrader
 	DB       database.DBInterface
 	Minio    database.MinioInterface
+	Mongo 	 database.MongoInterface
 }
 
 /*
@@ -65,7 +66,7 @@ func filterObjects(world *World, clientPos [3]float64, maxDistance float64) map[
 /*
    Creates and initializes a new Server instance.
 */
-func NewServer(db database.DBInterface, minio database.MinioInterface) *Server{
+func NewServer(db database.DBInterface, minio database.MinioInterface, mongo database.MongoInterface) *Server{
 	return &Server{
 		Clients: make(map[string]*Client),
 		Upgrader: websocket.Upgrader{
@@ -75,6 +76,7 @@ func NewServer(db database.DBInterface, minio database.MinioInterface) *Server{
 		},
 		DB:    db,
 		Minio: minio, 
+		Mongo: mongo,
 	}
 }
 

@@ -14,13 +14,16 @@ import (
 )
 
 type ObjectService struct {
-	Storage database.MinioInterface
-	MongoDB *database.Mongo
+	Minio database.MinioInterface
+	MongoDB database.MongoInterface
 	Redis   *database.Redis
 }
 
-func NewObjectService(storage database.MinioInterface) *ObjectService {
-	return &ObjectService{Storage: storage}
+func NewObjectService(minio database.MinioInterface, mongo database.MongoInterface) *ObjectService {
+	return &ObjectService{
+		Minio: minio,
+		MongoDB: mongo,
+	}
 }
 
 func (s *ObjectService) UploadObject(bucketName, objectName string, file *multipart.FileHeader, metadata map[string]string) error {
@@ -30,11 +33,11 @@ func (s *ObjectService) UploadObject(bucketName, objectName string, file *multip
 	}
 	defer src.Close()
 
-	if s.Storage == nil {
-		return fmt.Errorf("MinIO storage was not initialized.")
+	if s.Minio == nil {
+		return fmt.Errorf("MinIO storage was not initialized")
 	}
 
-	err = s.Storage.UploadObjectFromReader(bucketName, objectName, src, file.Size, metadata["content_type"], metadata)
+	err = s.Minio.UploadObjectFromReader(bucketName, objectName, src, file.Size, metadata["content_type"], metadata)
 	if err != nil {
 		return fmt.Errorf("failed to upload object: %w", err)
 	}
@@ -70,7 +73,7 @@ func (s *ObjectService) UploadObject(bucketName, objectName string, file *multip
 
 func (s *ObjectService) ListObjects(bucketName string) ([]minio.ObjectInfo, error) {
 	ctx := context.Background()
-	objectCh := s.Storage.(*database.MinioStorage).Client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{Recursive: true})
+	objectCh := s.Minio.(*database.MinioStorage).Client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{Recursive: true})
 
 	var objects []minio.ObjectInfo
 	for object := range objectCh {

@@ -18,20 +18,25 @@ func main() {
 	if err := minio.Connect(); err != nil {
 		log.Fatalf("Erro ao conectar ao minio: %v", err)
 	}
-
 	database.MinioInstance = minio
 
-	swagger.SwaggerInfo.Title = "SSR Metaverse API"
-    swagger.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
-    swagger.SwaggerInfo.Version = "1.0"
-    swagger.SwaggerInfo.Host = "localhost:8080"
-    swagger.SwaggerInfo.BasePath = "/"
-    swagger.SwaggerInfo.Schemes = []string{"http"}
+	mongo := &database.Mongo{}
+	if err := mongo.Connect(); err != nil {
+		log.Fatalf("Erro ao conectar ao MongoDB: %v", err)
+	}
+	database.MongoInstance = mongo
 
-	srv := server.NewServer(db, minio)
-	
+	swagger.SwaggerInfo.Title = "SSR Metaverse API"
+	swagger.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
+	swagger.SwaggerInfo.Version = "1.0"
+	swagger.SwaggerInfo.Host = "localhost:8080"
+	swagger.SwaggerInfo.BasePath = "/"
+	swagger.SwaggerInfo.Schemes = []string{"http"}
+
+	srv := server.NewServer(db, minio, mongo)
+
 	log.Println("Starting server on :8080")
-	
+
 	if err := srv.Start(":8080"); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

@@ -11,9 +11,9 @@ import (
 	"github.com/swaggo/gin-swagger"
 
 	"ssr-metaverse/internal/core/auth/routes"
-	"ssr-metaverse/internal/middlewares"
-	"ssr-metaverse/internal/core/web-rtc/routes" 
 	"ssr-metaverse/internal/core/objects/routes"
+	"ssr-metaverse/internal/core/web-rtc/routes"
+	"ssr-metaverse/internal/middlewares"
 )
 
 // HelloHandler godoc
@@ -47,7 +47,7 @@ func (s *Server) Start(addr string) error {
 	routes.RegisterUserRoutes(router, s.DB)
 	routes.RegisterProtectedRoutes(router)
 
-	objects.RegisterObjectRoutes(router)
+	objects.RegisterObjectRoutes(router, s.Minio, s.Mongo)
 
 	web_rtc.RegisterWebRTCRoutes(router)
 

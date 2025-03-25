@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterObjectRoutes(router *gin.Engine) {
-	minioService := services.NewObjectService(database.MinioInstance)
-	objectController := controllers.NewObjectController(minioService)
+func RegisterObjectRoutes(router *gin.Engine, storage database.MinioInterface, mongo database.MongoInterface) {
+	objectService := services.NewObjectService(storage, mongo)
+	objectController := controllers.NewObjectController(objectService)
 
 	objects := router.Group("/objects")
 	{
@@ -18,3 +18,4 @@ func RegisterObjectRoutes(router *gin.Engine) {
 		objects.GET("/list/:bucket", objectController.ListObjects)
 	}
 }
+
