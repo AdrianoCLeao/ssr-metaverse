@@ -19,6 +19,8 @@ func main() {
 		log.Fatalf("Erro ao conectar ao minio: %v", err)
 	}
 
+	database.MinioInstance = minio
+
 	swagger.SwaggerInfo.Title = "SSR Metaverse API"
     swagger.SwaggerInfo.Description = "This is an example API to SSR Metaverse."
     swagger.SwaggerInfo.Version = "1.0"
